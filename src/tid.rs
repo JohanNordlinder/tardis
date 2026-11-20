@@ -25,9 +25,9 @@ impl Tid {
         let fel = || format!("ogiltig tid \"{text}\" (använd tt:mm, t.ex. 08:15)");
         let (t, m) = match s.split_once([':', '.']) {
             Some((t, m)) => (t, m),
-            None => (s, "0"),
+            None => (s, "00"),
         };
-        if t.is_empty() || m.is_empty() || m.len() > 2 {
+        if t.is_empty() || m.len() != 2 {
             return Err(fel());
         }
         let t: i32 = t.parse().map_err(|_| fel())?;
@@ -119,6 +119,7 @@ mod tester {
         assert!(Tid::tolka("8:60").is_err());
         assert!(Tid::tolka("abc").is_err());
         assert!(Tid::tolka("8:").is_err());
+        assert!(Tid::tolka("8:7").is_err(), "minuter kräver två siffror");
     }
 
     #[test]

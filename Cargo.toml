@@ -4,3 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+eframe = { version = "0.37", optional = true }
+
+[features]
+default = ["gui"]
+# Det grafiska programmet. Bygg bara terminalprogrammet med
+# `cargo build --no-default-features`.
+gui = ["dep:eframe"]
+
+[[bin]]
+name = "tardis-gui"
+path = "src/bin/tardis-gui.rs"
+required-features = ["gui"]

@@ -1,8 +1,11 @@
-# Tardis – flextid i terminalen
+# Tardis – flextid
 
-Ett litet Rust-program som räknar flextid med samma regler som Excel-mallen
-"Mall beräkning flex". Varje månad sparas som en vanlig textfil,
+Ett Rust-program som räknar flextid med samma regler som Excel-mallen
+"Mall beräkning flex". Det finns både ett grafiskt program (`tardis-gui`) och
+ett terminalprogram (`tardis`). Båda använder samma månadsfiler,
 `flex-ÅÅÅÅ-MM.txt`, som också går att redigera för hand.
+
+![Tardis grafiska gränssnitt](docs/skarmbild.png)
 
 ## Bygga
 
@@ -10,9 +13,33 @@ Ett litet Rust-program som räknar flextid med samma regler som Excel-mallen
 cargo build --release
 ```
 
-Programmet hamnar i `target/release/tardis`. Det behöver inga externa beroenden.
+Programmen hamnar i `target/release/` (`tardis-gui` och `tardis`). Vill du bara
+ha terminalprogrammet, utan GUI-beroenden: `cargo build --release --no-default-features`.
 
-## Använda
+## Grafiskt gränssnitt
+
+```bash
+tardis-gui                 # använder mappen ~/Tardis
+tardis-gui /sökväg/till/mapp
+```
+
+Mappen kan också anges med miljövariabeln `TARDIS_MAPP` eller ändras under
+*Inställningar* i programmet.
+
+* Bläddra mellan månader med pilarna, eller hoppa till aktuell månad med *Idag*.
+* Skriv tider direkt i tabellen. Arbetad tid, flex och Agressotid räknas om
+  medan du skriver och allt sparas direkt. Ogiltiga tider visas i rött och
+  sparas inte.
+* Normtid-kolumnen är tom när månadens normtid gäller; skriv t.ex. `3:59` för
+  en dag med arbetstidsförkortning.
+* *Skapa nästa månad* (eller *Skapa månaden* när du bläddrar till en månad som
+  saknas) skapar månaden med föregående månads flexsaldo som ingående saldo.
+* Har du ändrat i en tidigare månad visas en varning om att ingående saldo inte
+  stämmer, med en knapp för att uppdatera det.
+* *Lägg till dag* lägger till en helgdag, t.ex. en lördag du arbetat (normtid 0:00).
+* Under *Inställningar* ändras ingående saldo, normtid, flexram och minsta lunch.
+
+## Terminalprogram
 
 ```bash
 tardis ny 2026-11 --saldo +1:30          # skapa månadsfil med ingående saldo

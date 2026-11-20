@@ -3,17 +3,13 @@
 //! Gör samma beräkning som Excel-mallen "Mall beräkning flex", men sparar
 //! varje månad som en läsbar textfil (`flex-ÅÅÅÅ-MM.txt`).
 
-mod berakning;
-mod datum;
-mod fil;
-mod tid;
-
-use berakning::{Dag, Installningar, flexsaldo};
-use datum::{Manad, VECKODAGAR, helgdag, tolka_datum, veckodag};
-use fil::Flexfil;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use tid::Tid;
+use tardis::arkiv::{las, manadsfiler, skapa_manad, skriv, skriv_ny};
+use tardis::berakning::{Dag, Installningar, flexsaldo};
+use tardis::datum::{Manad, VECKODAGAR, helgdag, tolka_datum, veckodag};
+use tardis::fil::Flexfil;
+use tardis::tid::Tid;
 
 const HJALP: &str = "\
 Tardis – flextidsberäkning
@@ -71,40 +67,6 @@ fn tolka_argument(args: impl Iterator<Item = String>) -> Result<Argument, String
     Ok(a)
 }
 
-fn las(sokvag: &Path) -> Result<Flexfil, String> {
-    let text = std::fs::read_to_string(sokvag)
-        .map_err(|e| format!("kunde inte läsa {}: {e}", sokvag.display()))?;
-    Flexfil::tolka(&text).map_err(|e| format!("{}: {e}", sokvag.display()))
-}
-
-fn skriv(sokvag: &Path, fil: &Flexfil) -> Result<(), String> {
-    std::fs::write(sokvag, fil.till_text())
-        .map_err(|e| format!("kunde inte skriva {}: {e}", sokvag.display()))
-}
-
-fn skriv_ny(sokvag: &Path, fil: &Flexfil) -> Result<(), String> {
-    if sokvag.exists() {
-        return Err(format!("{} finns redan", sokvag.display()));
-    }
-    skriv(sokvag, fil)
-}
-
-/// Alla månadsfiler i mappen, sorterade äldst först.
-fn manadsfiler(mapp: &Path) -> Vec<(Manad, PathBuf)> {
-    let mut filer: Vec<_> = std::fs::read_dir(mapp)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter_map(|e| {
-            let namn = e.file_name().to_string_lossy().into_owned();
-            let m = Manad::hitta_i(&namn)?;
-            (namn == m.filnamn()).then(|| (m, e.path()))
-        })
-        .collect();
-    filer.sort();
-    filer
-}
-
 fn senaste_fil(a: &Argument, index: usize) -> Result<PathBuf, String> {
     if let Some(f) = a.positionella.get(index) {
         return Ok(PathBuf::from(f));
@@ -133,22 +95,18 @@ fn las_dag(datum: String, tider: &[String], normtid: Option<Tid>) -> Result<Dag,
     })
 }
 
-/// Skapar månadsfilen för `manad` utifrån `fran` (föregående månads fil).
-fn skapa_nasta(fran: &Path, manad: Manad, mapp: &Path) -> Result<PathBuf, String> {
-    let gammal = las(fran)?;
-    let saldo = flexsaldo(&gammal.dagar, &gammal.installningar);
-    let inst = Installningar {
-        ingaende_saldo: saldo,
-        ..gammal.installningar
-    };
-    let sokvag = mapp.join(manad.filnamn());
-    skriv_ny(&sokvag, &Flexfil::ny_manad(manad, inst))?;
-    println!(
-        "Skapade {} med ingående saldo {} (från {}).",
-        sokvag.display(),
-        saldo.med_tecken(),
-        fran.display()
-    );
+/// Skapar månadsfilen för `manad` och berättar varifrån saldot kom.
+fn skapa_och_meddela(mapp: &Path, manad: Manad) -> Result<PathBuf, String> {
+    let (sokvag, saldo, fran) = skapa_manad(mapp, manad)?;
+    match fran {
+        Some(f) => println!(
+            "Skapade {} med ingående saldo {} (från {}).",
+            sokvag.display(),
+            saldo.med_tecken(),
+            f.display()
+        ),
+        None => println!("Skapade {} (ingående saldo 0:00).", sokvag.display()),
+    }
     Ok(sokvag)
 }
 
@@ -178,7 +136,7 @@ fn kor(a: Argument) -> Result<(), String> {
                 .parent()
                 .filter(|p| !p.as_os_str().is_empty())
                 .unwrap_or(&a.mapp);
-            skapa_nasta(&fran, m.nasta(), mapp)?;
+            skapa_och_meddela(mapp, m.nasta())?;
         }
         "in" => {
             let datum_arg = a
@@ -199,19 +157,7 @@ fn kor(a: Argument) -> Result<(), String> {
             }
             let sokvag = a.mapp.join(manad.filnamn());
             if !sokvag.exists() {
-                let tidigare = manadsfiler(&a.mapp)
-                    .into_iter()
-                    .rev()
-                    .find(|(m, _)| *m < manad);
-                match tidigare {
-                    Some((_, fran)) => {
-                        skapa_nasta(&fran, manad, &a.mapp)?;
-                    }
-                    None => {
-                        skriv_ny(&sokvag, &Flexfil::ny_manad(manad, Installningar::default()))?;
-                        println!("Skapade {} (ingående saldo 0:00).", sokvag.display());
-                    }
-                }
+                skapa_och_meddela(&a.mapp, manad)?;
             }
             let mut fil = las(&sokvag)?;
             fil.satt_dag(dag.clone());
